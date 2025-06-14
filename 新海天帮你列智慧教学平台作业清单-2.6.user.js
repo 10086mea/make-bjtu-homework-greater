@@ -1,16 +1,14 @@
 // ==UserScript==
-// @name         新海天帮你列智慧教学平台作业清单
+// @name         新海天帮你列智慧教学平台作业清单 精简
 // @namespace    http://tampermonkey.net/
-// @version      2.6
-// @description  V2.6: 新增 "Star本项目" 按钮，方便用户收藏支持。
+// @version      2.7
+// @description  V2.7: 修正了因网站增加Referer等头部校验而导致无法获取作业的问题。V2.6: 新增 "Star本项目" 按钮。
 // @author       上条当咩&&Gemini
 // @match        http://123.121.147.7:88/*
 // @license      MIT
 // @grant        GM_addStyle
 // @grant        GM_xmlhttpRequest
 // @connect      123.121.147.7
-// @downloadURL https://update.greasyfork.org/scripts/538889/%E6%96%B0%E6%B5%B7%E5%A4%A9%E5%B8%AE%E4%BD%A0%E5%88%97%E6%99%BA%E6%85%A7%E6%95%99%E5%AD%A6%E5%B9%B3%E5%8F%B0%E4%BD%9C%E4%B8%9A%E6%B8%85%E5%8D%95.user.js
-// @updateURL https://update.greasyfork.org/scripts/538889/%E6%96%B0%E6%B5%B7%E5%A4%A9%E5%B8%AE%E4%BD%A0%E5%88%97%E6%99%BA%E6%85%A7%E6%95%99%E5%AD%A6%E5%B9%B3%E5%8F%B0%E4%BD%9C%E4%B8%9A%E6%B8%85%E5%8D%95.meta.js
 // ==/UserScript==
 
 (function() {
@@ -132,10 +130,28 @@
 
     function gmFetch(url) {
         return new Promise((resolve, reject) => {
+            // 定义需要伪造的请求头
+            const headers = {
+                // 关键 #1: 模仿成功请求的 Accept 类型
+                'Accept': '*/*',
+                // 关键 #2: 表明这是一个 AJAX 请求
+                'X-Requested-With': 'XMLHttpRequest',
+                // 关键 #3: 请求的来源页面，这是最重要的部分
+                'Referer': 'http://123.121.147.7:88/ve/back/coursePlatform/coursePlatform.shtml?method=toCoursePlatform&courseToPage=10460&courseId=C108005B&dataSource=1&cId=117416&xkhId=2024-2025-2-2C108005B03&xqCode=2024202502&teacherId=9944'
+            };
+
             GM_xmlhttpRequest({
-                method: 'GET', url: url,
+                method: 'GET',
+                url: url,
+                headers: headers, // <-- 将伪造的请求头附加到请求上
                 onload: (response) => {
                     if (response.status >= 200 && response.status < 400) {
+                        // 增强：如果响应体为空（例如没有作业），则直接返回一个可处理的空数据结构，避免JSON解析错误
+                        if (!response.responseText || !response.responseText.trim()) {
+                            // 返回一个有 courseNoteList 属性的空对象，以适配后续代码
+                            resolve({ courseNoteList: [] });
+                            return;
+                        }
                         try {
                             const jsonData = JSON.parse(response.responseText);
                             if (typeof jsonData === 'string' && jsonData.includes("您还未登录")) {
@@ -143,8 +159,12 @@
                                 return;
                             }
                             resolve(jsonData);
-                        } catch (e) { reject(new Error("响应内容不是有效的JSON格式。")); }
-                    } else { reject(new Error(`请求失败，HTTP状态码: ${response.status}`)); }
+                        } catch (e) {
+                            reject(new Error(`响应内容不是有效的JSON格式。原始文本: "${response.responseText}"`));
+                        }
+                    } else {
+                        reject(new Error(`请求失败，HTTP状态码: ${response.status}`));
+                    }
                 },
                 onerror: (error) => reject(new Error(`网络请求错误: ${error}`))
             });
@@ -313,7 +333,7 @@
 
         // 创建 "Star本项目" 按钮的 HTML
         const starButtonHTML = `
-            <a href="https://github.com/10086mea/nimisora-homowork-notify/" target="_blank" id="star-repo-btn">
+            <a href="https://github.com/10086mea/make-bjtu-homework-greater/" target="_blank" id="star-repo-btn">
                 ❤️ Star本项目
             </a>
         `;
